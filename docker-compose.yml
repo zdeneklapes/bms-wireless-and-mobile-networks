@@ -1,6 +1,6 @@
 services:
   app:
-    container_name: ubuntu
+    container_name: bms-project
     # Here must be defined both image and build, because we use different .env files with which are the images build
     image: zdeneklapes/ubuntu:latest
     build:

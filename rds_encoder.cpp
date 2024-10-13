@@ -47,39 +47,46 @@ public:
         while ((opt = getopt(argc, argv, optString)) != -1) {
             switch (opt) {
                 case 'g':
-                    group_type = std::string(optarg);
+                    DEBUG_PRINT("Group type: %s\n", optarg);
+//                    group_type = std::string(optarg);
                     break;
                 case 'p':
-                    DEBUG_PRINT("Program ID: %d\n", program_id);
                     DEBUG_PRINT("Program ID: %s\n", optarg);
-                    program_id = static_cast<uint16_t>(std::stoi(optarg));
+//                    program_id = static_cast<uint16_t>(std::stoi(optarg));
                     break;
                 case 't':
-                    program_type = static_cast<uint8_t>(std::stoi(optarg));
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    program_type = static_cast<uint8_t>(std::stoi(optarg));
                     break;
                 case 'r':
-                    radio_text = std::string(optarg);
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    radio_text = std::string(optarg);
                     break;
                 case 'a':
-                    alternative_freq_1 = std::stof(optarg);
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    alternative_freq_1 = std::stof(optarg);
                     break;
                 case 'f':
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
                     // handle alternative frequencies properly, e.g., split into two values
                     break;
                 case 's':
-                    program_service = std::string(optarg);
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    program_service = std::string(optarg);
                     break;
                 case 'm':
-                    music_speech = std::stoi(optarg);
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    music_speech = std::stoi(optarg);
                     break;
                 case 'T':
-                    traffic_announcement = std::stoi(optarg);
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    traffic_announcement = std::stoi(optarg);
                     break;
                 case 'A':
-                    ab_flag = std::stoi(optarg);
+                    DEBUG_PRINT("Traffic program: %s\n", optarg);
+//                    ab_flag = std::stoi(optarg);
                     break;
                 default:
-                    std::cerr << "Invalid argument" << std::endl;
                     return false;
             }
         }
@@ -105,6 +112,21 @@ public:
     }
 };
 
+void usage() {
+    std::cout << "Usage: rds_encoder [options]" << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "  -g <group type>        Group type (0A, 2A)" << std::endl;
+    std::cout << "  -p <program id>        Program ID" << std::endl;
+    std::cout << "  -t <program type>      Program type" << std::endl;
+    std::cout << "  -r <radio text>        Radio text" << std::endl;
+    std::cout << "  -a <alternative freq>  Alternative frequency" << std::endl;
+    std::cout << "  -f <alternative freq>  Alternative frequency" << std::endl;
+    std::cout << "  -s <program service>   Program service" << std::endl;
+    std::cout << "  -m <music/speech>      Music/speech" << std::endl;
+    std::cout << "  -T <traffic announcement> Traffic announcement" << std::endl;
+    std::cout << "  -A <AB flag>           AB flag" << std::endl;
+}
+
 /**
  * @brief Exits the program with a given code and optional message
  *
@@ -115,11 +137,16 @@ public:
 int exit_with_code(
         Program *program,
         const int code,
+        const bool print_usage = false,
         const std::string &message = ""
 ) {
     // Print message to stderr if code is not 0 and message is not empty
     if (code != 0 && !message.empty()) {
         std::cerr << message << std::endl;
+    }
+
+    if (print_usage) {
+        usage();
     }
 
     // Print message to stdout if code is 0 and message is not empty
