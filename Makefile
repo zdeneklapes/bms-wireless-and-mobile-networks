@@ -39,6 +39,11 @@ valgrind-encoder: $(BIN_ENCODER)
 valgrind-decoder: $(BIN_DECODER)
 	valgrind --leak-check=yes ./$(BIN_DECODER)
 
+run-encoder: $(BIN_ENCODER)
+	#./$(BIN_ENCODER) -h
+	./$(BIN_ENCODER) -g 0A -pi 4660 -pty 5 -tp 1 -ms 0 -ta 1 -af 104.5,98.0 -ps "RadioXYZ"
+#	./$(BIN_ENCODER) --help
+
 run-docker:
 	docker compose run --remove-orphans --entrypoint /usr/bin/fish app
 
