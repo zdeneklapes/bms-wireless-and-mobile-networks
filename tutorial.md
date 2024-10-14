@@ -1,0 +1,427 @@
+# BMS project tutorial
+# Author: Tomas Dvorak
+
+## Encoder
+This document helped me understand the basics of this project. Hope it will help you too. **This part focuses on 0A. 2A works differently, but once you understand 0A, you'll be fine with 2A.**
+
+So, the message the encoder should generate looks like this:
+
+> 00010010001101000001101010000001001011000011111111101010101001101001000001101101010010011000011010101001000100100011010000011010100000010010110001100100011100000000000000000101101000011001000110100111110001100001001000110100000110101000000100101100100010001100000000000000000001011010000110111101011000010011101000010010001101000001101010000001001011001101001101010000000000000000010110100001011001010110100000100100
+
+416 bits to be exact, 4 blocks * 106 bits. Why do we send this many bits? Because we have up to 8 letters with the `-ps` parameter, we need to send 2*4 letters. That's why this message is 416 bits (4 messages with 2 letters each). Let's prepare the set first:
+
+```
+      DATA           CRC
+----------------|-------------
+
+0001001000110100 0001101010
+0000010010110000 1111111110
+1010101001101001 0000011011
+0101001001100001 1010101001
+
+0001001000110100 0001101010
+0000010010110001 1001000111
+0000000000000000 0101101000
+0110010001101001 1111000110
+
+0001001000110100 0001101010
+0000010010110010 0010001100
+0000000000000000 0101101000
+0110111101011000 0100111010
+
+0001001000110100 0001101010
+0000010010110011 0100110101
+0000000000000000 0101101000
+0101100101011010 0000100100
+```
+<br>
+
+## BLOCK 1
+Let's start by the first block. We'll only look at data for now, CRC will be done later on. [In order to fully understand what I'm doing, refer to the documentation.](http://www.interactive-radio-system.com/docs/EN50067_RDS_Standard.pdf#page=21)
+
+```
+      DATA           CRC
+----------------|-------------
+0001001000110100 0001101010 
+0000010010110000 1111111110
+1010101001101001 0000011011
+0101001001100001 1010101001
+
+```
+
+
+
+```
+We should extract these from this block:
+PI: 4660
+GT: 0A
+TP: 1
+PTY: 5
+TA: Active
+MS: Speech
+DI: 1
+AF: 104.5, 98.0
+PS: "RadioXYZ" <- only Ra in this block
+```
+<br>
+<br>
+
+### ROW 1
+#### 0001001000110100
+The first part should be only `-PI`, 16 bit value
+[Rapid Table conversion](https://www.rapidtables.com/convert/number/binary-to-decimal.html?x=0001001000110100)
+
+Indeed it is. 
+```
+PI: 4660
+```
+
+<br>
+<br>
+
+### ROW 2
+#### 0000010010110000
+<br>
+Next is group, those are 5 bits, 4 to recognize the "type" (we use only 0 and 2 so 0000 and 0010 respectively) and the last bit is an A/B selector.
+
+```
+Group number   A/B       Rest
+    0000        0    *10010110000*
+```
+This can be read as: value 0 and A, so 0A. [Read the documentation if you want more info.](http://www.interactive-radio-system.com/docs/EN50067_RDS_Standard.pdf#page=17)
+
+Then there are the flags, we'll use the remaining `*part*` to decode them.
+
+```
+10010110000
+```
+
+The flags are as follow: TP 1b, PTY 5b, TA 1b M/S 1b DI (always 0) and decoder control bits, meaning what part of the text this is. We've decoded the first frame, so 00, others would be 01 10 11. You can confirm it with other frames when looking at the end of the second rows.
+
+ So this part will look like this:
+
+```
+TP   PTY    TA  M/S  DI    1ST PART
+1   00101   1    0   0        00
+```
+The information we got from this row looks like this:
+
+```
+TP:  1
+PTY: 5
+TA:  1 (Active)
+M/S: Speech
+DI:  0 (Always zero for this project)
+     00 <- FIRST PART OF THE MESSAGE (3 more left)
+```
+
+<br>
+<br>
+
+### ROW 3
+#### 1010101001101001
+<br>
+
+This one is all about the alternative frequency. It is split into 8 + 8 bits and the number is going up one byone **BY ONE DECIMAL** from 87.5. 
+[Documentation (Lower half of the page)](http://www.interactive-radio-system.com/docs/EN50067_RDS_Standard.pdf#page=41). As an example:
+```
+0000 0001 is 87.6
+0000 0010 is 87.7
+0000 0011 is 87.8
+0000 0100 is 87.9
+```
+That leaves us with these numbers:
+
+```
+10101010 = 170 -> 17.0   87.5 + 17 = 104.5
+
+01101001 = 105 -> 10.5   87.5 + 10.5 = 98.0
+```
+
+and those are indeed the correct numbers:
+```
+AF: 104.5, 98.0
+```
+
+<br>
+<br>
+
+### ROW 4
+#### 0101001001100001
+
+This is the final step, the "Ra" as char. You can check it with unicode table. It's two bytes and as mentioned earlier, to correctly "glue" the string together you can use the information in ROW 2.
+
+```
+01010010 = 82 -> R
+01100001 = 97 -> a
+```
+
+<br>
+<br>
+
+## CRC
+
+[GeeksforGeeks on Cyclic Correction](https://www.geeksforgeeks.org/modulo-2-binary-division/). You only get the basic idea, do NOT READ THE DOCUMENTATION FOR THIS, IT'LL MESS YOU UP. Unless you are smart enough to understand that BS they have there, follow this already "transformed" version. [If you just want to compute it, refer to this website.](https://asecuritysite.com/comms/mod_div?a=00010010001101000000000000&b=10110111001)
+
+
+
+So now we need to compute the CRC. How exactly do we do that? Let's look at the frame:
+```
+      DATA           CRC
+----------------|-------------
+0001001000110100 0001101010
+0000010010110000 1111111110
+1010101001101001 0000011011
+0101001001100001 1010101001
+```
+
+from the documentation we have a polynom of:
+
+$g(x) = x^{10}+x^{8}+x^{7}+x^{5}+x^{4}+x^{3}+1 = 10110111001$
+
+
+Then we take the data block:
+```
+0001001000110100
+```
+append 10 zeros to it so the result is:
+
+```
+000100100011010000000000000
+(0001001000110100 00000000000)
+```
+
+then do a division, but it's an XOR instead of subtraction (refer to GeeksforGeeks or the computation website, both have a tutorial). Also, we care about the **remainder**, nothing else.
+
+remainder is: [source](https://asecuritysite.com/comms/mod_div?a=00010010001101000000000000&b=10110111001)
+```
+0010010110
+```
+
+we **XOR** that with BLOCK A since it's the first block, so with second one we'll use BLOCK B and so on.
+```
+BLOCK A: 0xFC = 11111100 = 252
+BLOCK B: 0x198 = 110011000 = 408
+BLOCK C: 0x168 = 101101000 = 360 
+BLOCK D: 0x1B4 = 110110100 = 436
+
+11111100 ⊕ 0010010110 = 0001101010
+
+  11111100
+0010010110
+-----------
+0001101010
+```
+
+
+CRC = 0001101010 which is correct.
+
+That's all you need for the encoder and 0A
+# 2A
+
+[Documentation](http://www.interactive-radio-system.com/docs/EN50067_RDS_Standard.pdf#page=25)
+
+Raw format:
+>00010010001101000001101010001001001010000011111011100100111001101111100111101101110111001000001100100100000100100011010000011010100010010010100001100101011101010000011011001000101010011000010111100111110101010001001000110100000110101000100100101000100010011100011010010110111010011110010110011100111010111110000100010010001101000001101010001001001010001101001001010010000001010011111000010001101111011011100001101101000100100011010000011010100010010010100100001011001101100111001000000011110011010101000110100111011000100001001000110100000110101000100100101001010100001010011101000110110010111101010110010100100000011001011100010010001101000001101010001001001010011011110000010110001001111001100110110100100000010000011110010101000100100011010000011010100010010010100111100111100001110010011101000010000001011010010111001100111111010001001000110100000110101000100100101010000011101101011101000010000010100111000010000000100000001101110000010010001101000001101010001001001010100101010101000010000000100000000000000000100000001000000011011100000100100011010000011010100010010010101010111001111100100000001000000000000000001000000010000000110111000001001000110100000110101000100100101010111000100110001000000010000000000000000010000000100000001101110000010010001101000001101010001001001010110011101100000010000000100000000000000000100000001000000011011100000100100011010000011010100010010010101101100000100100100000001000000000000000001000000010000000110111000001001000110100000110101000100100101011100011000010001000000010000000000000000010000000100000001101110000010010001101000001101010001001001010111101011110110010000000100000000000000000100000001000000011011100
+
+So what are we working with? Same thing, but instead of all the flags and nonsense, we got more text. The text encoded is: "Now Playing: Song Title by Artist" which is 33 characters long, so there's 16 total frames sent, only 4*9 is sent with meaningful info (33 fits into 36). **The rest of the characters are padded out with " ", 0x20, whitespace, whichever you prefer.** Then it's the same exact thing, encode everything, get CRC smash it together, profit.
+
+```
+      DATA           CRC
+----------------|-------------
+1.
+0001001000110100 0001101010
+0010010010100000 1111101110
+0100111001101111 1001111011
+0111011100100000 1100100100
+
+0001001000110100 0001101010
+0010010010100001 1001010111
+0101000001101100 1000101010
+0110000101111001 1111010101
+
+0001001000110100 0001101010
+0010010010100010 0010011100
+0110100101101110 1001111001
+0110011100111010 1111100001
+
+0001001000110100 0001101010
+0010010010100011 0100100101
+0010000001010011 1110000100
+0110111101101110 0001101101
+
+0001001000110100 0001101010
+0010010010100100 0010110011
+0110011100100000 0011110011
+0101010001101001 1101100010
+
+0001001000110100 0001101010
+0010010010100101 0100001010
+0111010001101100 1011110101
+0110010100100000 0110010111
+
+0001001000110100 0001101010
+0010010010100110 1111000001
+0110001001111001 1001101101
+0010000001000001 1110010101
+
+8.
+0001001000110100 0001101010
+0010010010100111 1001111000
+0111001001110100 0010000001
+0110100101110011 0011111101
+
+0001001000110100 0001101010
+0010010010101000 0011101101
+0111010000100000 1010011100
+00100000 00100000 0011011100
+
+0001001000110100 0001101010
+0010010010101001 0101010100
+0010000000100000 0000000000
+0010000000100000 0011011100
+
+0001001000110100 0001101010
+0010010010101010 1110011111
+0010000000100000 0000000000
+0010000000100000 0011011100
+
+0001001000110100 0001101010
+0010010010101011 1000100110
+0010000000100000 0000000000
+0010000000100000 0011011100
+
+0001001000110100 0001101010
+0010010010101100 1110110000
+0010000000100000 0000000000
+0010000000100000 0011011100
+
+0001001000110100 0001101010
+0010010010101101 1000001001
+0010000000100000 0000000000
+0010000000100000 0011011100
+
+0001001000110100 0001101010
+0010010010101110 0011000010
+0010000000100000 0000000000
+0010000000100000 0011011100
+
+16.
+0001001000110100 0001101010
+0010010010101111 0101111011
+0010000000100000 0000000000
+0010000000100000 0011011100
+```
+
+
+
+## Decoder
+Block of data:
+```
+      DATA           CRC
+----------------|-------------
+
+0001001000110100 0001101010
+0000010010110000 1111111110
+1010101001101001 0000011011
+0101001001100001 1010101001
+```
+Raw format:
+>00010010001101000001101010000001001011000011111111101010101001101001000001101101010010011000011010101001
+
+
+Before you start doing anything with the matrix, you **MUST CONVERT THE CRC BACK TO THE NON OFFSET VALUES.** This is why I asked if we have to check all blocks, since it's some additional work. **IMO** we have to check if the blocks are out of order. With that said, the [matrix H](http://www.interactive-radio-system.com/docs/EN50067_RDS_Standard.pdf#page=63) looks like this:
+```
+1000000000
+0100000000
+0010000000
+0001000000
+0000100000
+0000010000
+0000001000
+0000000100
+0000000010
+0000000001
+1011011100
+0101101110
+0010110111
+1010000111
+1110011111
+1100010011
+1101010101
+1101110110
+0110111011
+1000000001
+1111011100
+0111101110
+0011110111
+1010100111
+1110001111
+1100011011
+```
+To quickly explain it, let's say we want a vector (array) of syndrome `s[i]`. We have a message block (the bits in block of data) `m` and the matrix `H`. We iterate through the entire matrix and the way to compute the syndrome is:
+$$
+s[i] = (m_1 \land H_{i,1}) \oplus (m_2 \land H_{i,2}) \oplus (m_3 \land H_{i,3}) \dots (m_j \land H_{i,j})
+$$
+where i_max = CRC bits (10) and j_max = Block bits (26). After you get the whole vector, you check if all 10 bits are == 0, if not, `exit(2)`. I used ChatGPT for this section, so you probably want to use that to understand it a bit better yourself. The documentation sucks.
+
+```
+So, just to show you a few steps:
+
+CONVERT CRC BACK TO IT'S ORIGINAL FORM:
+
+0001101010 ⊕ 11111100 = 0010010110
+
+so the data will look like this: data = 0001001000110100 0010010110
+
+i = 0
+j = 0
+data = 00010010001101000010010110
+H = 10000000001001111101100111
+
+00010010001101000010010110
+10000000001001111101100111
+---------------------------
+0
+j = 1
+
+00010010001101000010010110
+10000000001001111101100111
+---------------------------
+00
+j = 2
+
+00010010001101000010010110
+10000000001001111101100111
+---------------------------
+000
+j = 3
+.
+.
+.
+
+0001001000 1 10 1 000010010 11 0
+1000000000 1 00 1 111101100 11 1
+---------- - -- - --------- -- -
+0000000000 1 00 1 000000000 11 0
+j = 26
+
+
+Now we XOR everything:
+
+0000000000 1 00 1 000000000 11 0
+---------- - -- - --------- -- -
+4 1 bits = 0
+
+and now we redo this entire thing for second value in the array
+i = 1
+.
+.
+.
+
+What you should get is an array full of 0. That is, if you have done everything correctly and aren't testing for failures.
+
+```
+
+Hope this helps.
+

@@ -5,7 +5,20 @@
 #include <cstring>
 #include <stdexcept>
 #include <vector>
+#include <bitset>
+#include <sstream>
 
+#define ODA_BLOCK_SIZE (4*26)
+#define ODA_BLOCKS_0A_COUNT 4
+#define ODA_BLOCKS_2A_COUNT 16
+#define BLOCK_A_OFFSET 0xFC   // Block A offset (binary: 11111100)
+#define BLOCK_B_OFFSET 0x198  // Block B offset (binary: 110011000)
+#define BLOCK_C_OFFSET 0x168  // Block C offset (binary: 101101000)
+#define BLOCK_D_OFFSET 0x1B4  // Block D offset (binary: 110110100)
+#define FREQUENCY_START 87.5
+#define ODA_TYPE_A 0
+#define BLOCK_LENGTH 26 // 16 data bits + 10 check bits
+#define CRC_POLYNOMIAL 0b10110111001
 #define REGEX_TEXT "[a-zA-Z0-9 ]*"
 #define DEBUG 1
 #define DEBUG_LITE 1
@@ -15,12 +28,48 @@
         do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
                                 __LINE__, __func__, __VA_ARGS__); } while (0)
 
+// TODO: Check that group type 0A can send only text of 8 characters
+// TODO: Check that all
 
 class Args {
 private:
     std::map<std::string, char *> cached_args;
     char **argv;
     int argc;
+
+    /**
+     * @brief Returns the alternative frequencies as a vector of doubles.
+     * Caches the result so subsequent lookups are faster.
+     */
+    std::vector<double> _get_alternative_frequencies() {
+        std::vector<double> frequencies;
+        const char *arg_value = this->_get_arg("-af", "--alternative-frequencies");
+
+        if (arg_value == nullptr) {
+            throw std::invalid_argument("Alternative frequencies are not specified. Option: -af, --alternative-frequencies. Group type: 0A");
+        }
+
+        // NOTE: Separated this way, because we don't want to modify the original string
+        std::string input_str(arg_value);  // Create a copy of the input string
+        std::stringstream ss(input_str);   // Use stringstream for splitting
+        std::string token;
+
+        // Split the string by ',' without modifying the original string
+        while (std::getline(ss, token, ',')) {
+            try {
+                frequencies.push_back(std::stod(token));  // Convert and add to the vector
+            } catch (const std::invalid_argument &) {
+                throw std::invalid_argument("Invalid frequency value: " + token);
+            }
+        }
+
+//        for (const auto &frequency: frequencies) {
+//            DEBUG_PRINT_LITE("%f\n", frequency);
+//        }
+
+        return frequencies;
+    }
+
 
     /**
      * @brief Returns the argument value corresponding to the given short or long option.
@@ -30,13 +79,16 @@ private:
         // Check if the argument is already cached
         std::string key = short_option.empty() ? long_option : short_option;
         if (cached_args.find(key) != cached_args.end()) {
+//            DEBUG_PRINT_LITE("Get cached value: %s key %s\n", cached_args[key], key.c_str());
             return cached_args[key]; // Return cached value
         }
 
         // If no cached value, search for it in argv
         for (int i = 0; i < argc; i++) {
             if (!short_option.empty() && strcmp(argv[i], short_option.c_str()) == 0) {
+//                DEBUG_PRINT_LITE("Found value: %s\n", argv[i + 1]);
                 cached_args[short_option] = argv[i + 1]; // Cache the result
+//                DEBUG_PRINT_LITE("Cached value: %s\n", cached_args[short_option]);
                 return argv[i + 1];
             } else if (!long_option.empty() && strcmp(argv[i], long_option.c_str()) == 0) {
                 cached_args[long_option] = argv[i + 1]; // Cache the result
@@ -170,12 +222,12 @@ public:
      *
      * @throws std::invalid_argument
      */
-    bool is_music() {
+    bool get_music_speech() {
         const char *arg_value = this->_get_arg("-ms", "--music-speech");
         if (arg_value == nullptr) {
-            throw std::invalid_argument("Music/Speech is not specified. Option: -ms, --music-speech. Group type: 0A");
+            throw std::invalid_argument("Music/Speech is not specified. Option: -ms, --music-speech. 0 for Speech, 1 for Music. Group type: 0A");
         }
-        return this->_is_same(arg_value, "1");
+        return this->_is_same(arg_value, "0");
     }
 
 
@@ -213,27 +265,41 @@ public:
         return this->_is_same(traffic_announcement, "1");
     }
 
+
     /**
      * Group type: 0A
      * -af
-     * Alternative Frequencies (12-bit unsigned integer).
+     * Alternative Frequency 1st (8-bit unsigned integer).
      *
      * @return std::vector<double>
      *
      * @throws std::invalid_argument
      */
-    std::vector<double> get_alternative_frequencies() {
-        std::vector<double> frequencies;
-        char *arg_value = this->_get_arg("-af", "--alternative-frequencies");
-        if (arg_value == nullptr) {
-            throw std::invalid_argument("Alternative frequencies are not specified. Option: -af, --alternative-frequencies. Group type: 0A");
-        }
-        char *token = std::strtok(arg_value, ",");
-        while (token != nullptr) {
-            frequencies.push_back(std::stod(token));
-            token = std::strtok(nullptr, ",");
-        }
-        return frequencies;
+    std::bitset<8> get_alternative_frequency_1() {
+        std::vector<double> frequencies = this->_get_alternative_frequencies();
+
+        // AF1: 8 - bit
+//        DEBUG_PRINT_LITE("Frequency: %f, size: %d\n", frequencies[0], frequencies.size());
+        auto alternative_frequency_1 = std::bitset<8>((short int) (frequencies[0] - FREQUENCY_START) * 10);
+        return alternative_frequency_1;
+    }
+
+    /**
+     * Group type: 0A
+     * -af
+     * Alternative Frequency 2nd (8-bit unsigned integer).
+     *
+     * @return std::vector<double>
+     *
+     * @throws std::invalid_argument
+     */
+    std::bitset<8> get_alternative_frequency_2() {
+        std::vector<double> frequencies = this->_get_alternative_frequencies();
+
+        // AF2: 8 - bit
+//        DEBUG_PRINT_LITE("Frequency: %f, size: %d\n", frequencies[1], frequencies.size());
+        auto alternative_frequency_2 = std::bitset<8>((short int) (frequencies[1] - FREQUENCY_START) * 10);
+        return alternative_frequency_2;
     }
 
     /**
@@ -245,7 +311,7 @@ public:
      *
      * @throws std::invalid_argument
      */
-    const char *get_program_service() {
+    std::string get_program_service() {
         const char *program_service = this->_get_arg("-ps", "--program-service");
         if (program_service == nullptr) {
             throw std::invalid_argument("Program service is not specified. Option: -ps, --program-service. Group type: 0A");
@@ -303,6 +369,57 @@ public:
     }
 };
 
+class Group0A {
+public:
+    short int program_id;
+    char program_type;
+    bool traffic_program;
+    bool music_speech;
+    bool traffic_announcement;
+    std::vector<double> alternative_frequencies;
+    const char *program_service;
+
+    Group0A(short int program_id, char program_type, bool traffic_program, bool music_speech, bool traffic_announcement,
+            std::vector<double> alternative_frequencies, const char *program_service) :
+            program_id(program_id), program_type(program_type), traffic_program(traffic_program),
+            music_speech(music_speech), traffic_announcement(traffic_announcement),
+            alternative_frequencies(alternative_frequencies), program_service(program_service) {
+    }
+};
+
+class Group2A {
+
+};
+
+
+/**
+ * @brief Optimized CRC-10 calculation function for a 16-bit message.
+ *
+ * @param message The 16-bit message to compute the CRC for.
+ * @return std::bitset<10> The 10-bit CRC value.
+ */
+std::bitset<10> calculate_crc(const std::bitset<16> &message, const short int offset) {
+    uint32_t data = message.to_ulong();  // Convert the 16-bit message to an unsigned integer
+    data <<= 10;  // Shift left by 10 bits to append 10 zero bits for CRC (message * x^10)
+
+    const int total_bits = 26;  // 16-bit message + 10-bit CRC space
+
+    // Perform modulo-2 division (XOR) for CRC calculation
+    for (int i = total_bits - 1; i >= 10; --i) {
+        if (data & (1 << i)) {  // If the leading bit is set
+            data ^= (CRC_POLYNOMIAL << (i - 10));  // XOR with the generator polynomial shifted appropriately
+        }
+    }
+
+    // The remainder is the CRC value
+    auto crc = std::bitset<10>(data & 0x3FF);  // Mask out the 10 bits for the CRC
+    // TODO: fix me
+//    DEBUG_PRINT_LITE("CRC: %s\n", crc.to_string().c_str());
+//    crc ^= std::bitset<10>(offset);  // XOR with the offset word
+//    DEBUG_PRINT_LITE("CRC after offset: %s\n", crc.to_string().c_str());
+    return crc;
+}
+
 /**
  * @brief Class that holds global variables for the whole program
  */
@@ -321,10 +438,96 @@ public:
     }
 
     void process_0A() {
+        try {
+            // PI Code: 16 - bit
+            const auto program_id = args->get_program_identifier();
+            const auto data_1 = std::bitset<16>(program_id);
+            DEBUG_PRINT_LITE("Data - Program ID bits: %s\n", data_1.to_string().c_str());
+
+            // NOTE: Checkword + Offset A
+            const auto crc_1 = calculate_crc(data_1, BLOCK_A_OFFSET);
+            DEBUG_PRINT_LITE("CRC 1: %s\n", crc_1.to_string().c_str());
+
+            // Group Type: 4 - bit
+            std::bitset<4> group_type_bits(0);
+            DEBUG_PRINT_LITE("Program Type bits: %s\n", group_type_bits.to_string().c_str());
+
+            // ODA Type: 1 - bit
+            std::bitset<1> oda_type_bits(ODA_TYPE_A);
+            DEBUG_PRINT_LITE("ODA Type bits: %s\n", oda_type_bits.to_string().c_str());
+
+            // Traffic Program: 1 - bit
+            const auto traffic_program = args->get_traffic_program();
+            std::bitset<1> traffic_program_bits(traffic_program);
+            DEBUG_PRINT_LITE("Traffic Program bits: %s\n", traffic_program_bits.to_string().c_str());
+
+            // Program Type: 5 - bit
+            const auto program_type = args->get_program_type();
+            std::bitset<5> program_type_bits(program_type);
+            DEBUG_PRINT_LITE("Program Type bits: %s\n", program_type_bits.to_string().c_str());
+
+            // Traffic Announcement: 1 - bit
+            const auto traffic_announcement = args->get_traffic_announcement();
+            std::bitset<1> traffic_announcement_bits(traffic_announcement);
+            DEBUG_PRINT_LITE("Traffic Announcement bits: %s\n", traffic_announcement_bits.to_string().c_str());
+
+            // Music/Speech: 1 - bit
+            const auto music_speech = args->get_music_speech();
+            std::bitset<1> music_speech_bits(music_speech);
+            DEBUG_PRINT_LITE("Music/Speech bits: %s\n", music_speech_bits.to_string().c_str());
+
+            // Decode Identifier: 1 - bit
+            std::bitset<1> decode_identifier_bits(0); // always 0
+            DEBUG_PRINT_LITE("Decode Identifier bits: %s\n", decode_identifier_bits.to_string().c_str());
+
+            // NOTE: Word part: here, but calculated later
+
+            // NOTE: Checkword + Offset A
+
+            // Alternative Frequency 1: 8 - bit
+            const auto alternative_frequency_1 = args->get_alternative_frequency_1();
+            DEBUG_PRINT_LITE("Alternative Frequency 1: %s\n", alternative_frequency_1.to_string().c_str());
+
+            // Alternative Frequency 2: 8 - bit
+            const auto alternative_frequency_2 = args->get_alternative_frequency_2();
+            DEBUG_PRINT_LITE("Alternative Frequency 2: %s\n", alternative_frequency_2.to_string().c_str());
+
+            // NOTE: Checkword + Offset A
+            const auto data_3 = std::bitset<16>((alternative_frequency_1.to_ulong() << 8) | alternative_frequency_2.to_ulong());
+            DEBUG_PRINT_LITE("Alternative Frequency bits: %s\n", data_3.to_string().c_str());
+            const auto crc_3 = calculate_crc(data_3, BLOCK_C_OFFSET);
+            DEBUG_PRINT_LITE("CRC 3: %s\n", crc_3.to_string().c_str());
+
+            // NOTE: Program Service: 16 bits
+            const auto data_4 = args->get_program_service();
+            DEBUG_PRINT_LITE("Program Service: %s\n", data_4.c_str());
+
+            // NOTE: Checkword + Offset A
+            const auto crc_4 = calculate_crc(std::bitset<16>(data_4), BLOCK_D_OFFSET);
+            DEBUG_PRINT_LITE("CRC 4: %s\n", crc_4.to_string().c_str());
+
+            // blocks
+            std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE> all_blocks;
+            for (int i = 0; i < data_4.size(); i = i + 2) {
+                const auto radio_text = data_4.substr(i, 2);
+                const auto crc_2 = calculate_crc(std::bitset<16>(radio_text), BLOCK_B_OFFSET);
+                DEBUG_PRINT_LITE("Program Service: %s\n", radio_text.c_str());
+                // TODO: Stack it here
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Error processing Group 0A: " << e.what() << std::endl;
+        }
 
     }
 
     void process_2A() {
+        try {
+            std::bitset<4> program_type_bits(0);
+            DEBUG_PRINT_LITE("Program Type bits: %s\n", program_type_bits.to_string().c_str());
+            // TODO
+        } catch (const std::exception &e) {
+            std::cerr << "Error processing Group 2A: " << e.what() << std::endl;
+        }
 
     }
 
@@ -363,13 +566,14 @@ int main(int argc, char *argv[]) {
 
     try {
         const auto group_type = program->args->get_group_type();
-        DEBUG_PRINT_LITE("Group Type: %d\n", group_type);
 
         if (group_type == Args::GroupType::A0) {
+            DEBUG_PRINT_LITE("Processing Group %s\n", "0A");
             program->process_0A();
         }
 
         if (group_type == Args::GroupType::A2) {
+            DEBUG_PRINT_LITE("Processing Group %s\n", "2A");
             program->process_2A();
         }
 //        const auto type = program->args->get_program_type();
@@ -378,7 +582,7 @@ int main(int argc, char *argv[]) {
 //        DEBUG_PRINT_LITE("Program ID: %d\n", program_id);
 //        const auto traffic_program = program->args->get_traffic_program();
 //        DEBUG_PRINT_LITE("Traffic Program: %d\n", traffic_program);
-//        const auto music = program->args->is_music();
+//        const auto music = program->args->get_music_speech();
 //        DEBUG_PRINT_LITE("Music: %d\n", music);
 //        const auto speech = program->args->is_speech();
 //        DEBUG_PRINT_LITE("Speech: %d\n", speech);

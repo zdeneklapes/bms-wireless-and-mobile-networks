@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM --platform=linux/arm64 ubuntu:22.04
 
 # Install system packages
 RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y install tzdata
