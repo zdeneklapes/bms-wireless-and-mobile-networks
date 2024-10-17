@@ -298,8 +298,9 @@ public:
         std::vector<double> frequencies = this->_get_alternative_frequencies();
 
         // AF2: 8 - bit
-//        DEBUG_PRINT_LITE("Frequency: %f, size: %d\n", frequencies[1], frequencies.size());
-        auto alternative_frequency_2 = std::bitset<8>((short int) (frequencies[1] - FREQUENCY_START) * 10);
+        const auto offset = (frequencies[1] - FREQUENCY_START) * 10;
+//        DEBUG_PRINT_LITE("Frequency 2: %f, size: %d, offset: %d\n", frequencies[1], frequencies.size(), offset);
+        auto alternative_frequency_2 = std::bitset<8>(offset);
         return alternative_frequency_2;
     }
 
@@ -316,6 +317,13 @@ public:
         const char *program_service = this->_get_arg("-ps", "--program-service");
         if (program_service == nullptr) {
             throw std::invalid_argument("Program service is not specified. Option: -ps, --program-service. Group type: 0A");
+        }
+
+        // length of the string is smaller that 8 add padding spaces to the end
+        if (strlen(program_service) < 8) {
+            std::string str(program_service);
+            str.resize(8, ' ');
+            return str;
         }
         return program_service;
     }
@@ -528,7 +536,7 @@ public:
             /// BLOCK 4
             ////////////////////////////
             const auto block_D = args->get_program_service();
-//            DEBUG_PRINT_LITE("Program Service: %s\n", block_D.c_str());
+            DEBUG_PRINT_LITE("Program Service: '%s'\n", block_D.c_str());
 
             // NOTE: Checkword + Offset A
 //            const auto crc_4 = calculate_crc(std::bitset<16>(block_D), OFFSET_WORDS.at("D"));
@@ -541,39 +549,28 @@ public:
             all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_A.to_ulong()) << (3 * 26 + 10);
             all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_A.to_ulong()) << (3 * 26);
 
-            // BLOCK B:
+            // BLOCK B 1.:
             block_B |= std::bitset<16>(0);
             all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_B.to_ulong()) << (2 * 26 + 10);
             const auto crc_B = calculate_crc(block_B, OFFSET_WORDS.at("B"));
             all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_B.to_ulong()) << (2 * 26);
 
             // BLOCK C:
-//            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_C.to_ulong()) << (1 * 26 + 10);
-//            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_A.to_ulong()) << (1 * 26);
+            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_C.to_ulong()) << (1 * 26 + 10);
+            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_C.to_ulong()) << (1 * 26);
+
+            // BLOCK D:
+            const auto chars = block_D.substr(0, 2);
+            uint16_t combined_value = (static_cast<uint16_t>(chars[0]) << 8) | static_cast<uint16_t>(chars[1]);
+            const auto crc_4 = calculate_crc(std::bitset<16>(combined_value), OFFSET_WORDS.at("D"));
+            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(combined_value) << (0 * 26 + 10);
+            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_4.to_ulong()) << (0 * 26);
             print_packet(all_blocks);
 
 
+            for (int i = 0; i < block_D.size(); i = i + 2) {
 
-//            block_B
-//            all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_C.to_ulong()) << (2 * 26);
-//            DEBUG_PRINT_LITE("All Blocks: %s\n", all_blocks.to_string().c_str());
-
-
-//            DEBUG_PRINT_LITE("All Blocks: %s", all_blocks.to_string().c_str());
-//            for (int i = 0; i < block_D.size(); i = i + 2) {
-//                // Block 1
-//                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_A.to_ulong()) << (4 * 26);
-//
-//                // Block 2
-////                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_B.to_ulong()) << (3 * 26);
-//
-//                // Block 3
-//                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_C.to_ulong()) << (2 * 26);
-//
-//                // Block 4
-////                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_D.to_ulong()) << (1 * 26);
-//                DEBUG_PRINT_LITE("All Blocks: %s", all_blocks.to_string().c_str());
-//            }
+            }
         } catch (const std::exception &e) {
             std::cerr << "Error processing Group 0A: " << e.what() << std::endl;
         }

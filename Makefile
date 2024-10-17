@@ -44,6 +44,9 @@ run-encoder: $(BIN_ENCODER)
 	./$(BIN_ENCODER) -g 0A -pi 4660 -pty 5 -tp 1 -ms 0 -ta 1 -af 104.5,98.0 -ps "RadioXYZ"
 #	./$(BIN_ENCODER) --help
 
+build:
+	docker compose build
+
 run-docker:
 	docker compose run --remove-orphans --entrypoint /usr/bin/fish app
 
