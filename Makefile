@@ -39,9 +39,14 @@ valgrind-encoder: $(BIN_ENCODER)
 valgrind-decoder: $(BIN_DECODER)
 	valgrind --leak-check=yes ./$(BIN_DECODER)
 
-run-encoder: $(BIN_ENCODER)
+run-encoder-0a: $(BIN_ENCODER)
 	#./$(BIN_ENCODER) -h
 	./$(BIN_ENCODER) -g 0A -pi 4660 -pty 5 -tp 1 -ms 0 -ta 1 -af 104.5,98.0 -ps "RadioXYZ"
+#	./$(BIN_ENCODER) --help
+
+run-encoder-2a: $(BIN_ENCODER)
+	#./$(BIN_ENCODER) -h
+	./$(BIN_ENCODER) -g 2A -pi 4660 -pty 5 -tp 1 -rt "Now Playing: Song Title by Artist" -ab 0
 #	./$(BIN_ENCODER) --help
 
 build:
