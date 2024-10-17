@@ -1,31 +1,5 @@
 #include "rds_encoder.hpp"
-#include <iostream>
-#include <map>
-#include <string>
-#include <cstring>
-#include <stdexcept>
-#include <vector>
-#include <bitset>
-#include <sstream>
 
-#define ODA_BLOCK_SIZE 26
-#define CHARS_COUNT_0A 8
-#define CHARS_COUNT_2A 64
-#define ODA_BLOCKS_0A_COUNT 4
-#define ODA_BLOCK_PARTS_COUNT 4
-#define ODA_BLOCKS_2A_COUNT ODA_BLOCKS_0A_COUNT*ODA_BLOCKS_0A_COUNT
-#define FREQUENCY_START 87.5
-#define ODA_TYPE_A 0
-#define BLOCK_LENGTH 26 // 16 data bits + 10 check bits
-#define CRC_POLYNOMIAL 0b10110111001
-#define REGEX_TEXT "[a-zA-Z0-9 ]*"
-#define DEBUG 0
-#define DEBUG_LITE 0
-#define DEBUG_PRINT_LITE(fmt, ...) \
-            do { if (DEBUG_LITE) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
-#define DEBUG_PRINT(fmt, ...) \
-        do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
-                                __LINE__, __func__, __VA_ARGS__); } while (0)
 
 // TODO: Check that group type 0A can send only text of 8 characters
 // TODO: Check that all
@@ -418,29 +392,6 @@ std::bitset<10> calculate_crc(const std::bitset<16> &message, std::bitset<10> of
     return crc;
 }
 
-template<std::size_t N>
-void print_packet(const std::bitset<N> &packet) {
-    // Check size is multiple of 26
-    if (packet.size() % ODA_BLOCK_SIZE != 0) {
-        throw std::invalid_argument("Packet size must be a multiple of 26 bits.");
-    }
-
-    const auto blocks = packet.size() / ODA_BLOCK_SIZE;
-
-    const auto foo = packet.to_string();
-    DEBUG_PRINT_LITE("Packet/Block: %s\n", foo.c_str());
-
-    // Print all block in pakcet
-//    for (int i = blocks-1; i >= 0; i--) {
-    for (int i = 0; i < blocks; i++) {
-//        std::bitset<N> data_11 = packet << (i * ODA_BLOCK_SIZE);
-//        DEBUG_PRINT_LITE("Block %d: %s\n", i, data_11.to_string().c_str());
-
-        std::bitset<ODA_BLOCK_SIZE> data_22 = std::bitset<data_22.size()>((packet << (i * ODA_BLOCK_SIZE)).to_string());
-        DEBUG_PRINT_LITE("Block %d: %s | %s\n", i, data_22.to_string().substr(0, 16).c_str(), data_22.to_string().substr(16, 10).c_str());
-    }
-}
-
 /**
  * @brief Class that holds global variables for the whole program
  */
@@ -458,7 +409,7 @@ public:
         delete args;
     }
 
-    std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE> process_0A() {
+    std::bitset<SIZE_0A> process_0A() {
         try {
             ////////////////////////////
             /// BLOCK 1
@@ -551,33 +502,33 @@ public:
             ////////////////////////////
             /// Assemble the packet
             ////////////////////////////
-            std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE> all_blocks(0);
-            std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE> packet(0);
+            std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE> all_blocks(0);
+            std::bitset<SIZE_0A> packet(0);
             for (int i = 0; i < block_D.size(); i = i + 2) {
 //            for (int i = 0; i < 1; i = i + 2) {
                 // BLOCK A:
-                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_A.to_ulong()) << (3 * 26 + 10);
-                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_A.to_ulong()) << (3 * 26);
+                all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(block_A.to_ulong()) << (3 * 26 + 10);
+                all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(crc_A.to_ulong()) << (3 * 26);
 
                 // BLOCK B 1.:
                 // because i increasing by 2, but the segment number must increase by 1
                 const auto segment = std::bitset<2>(i / 2);
-                block_B &= std::bitset<16>(0b1111111111111100); // clear 1st two bits in block_B
+                block_B &= std::bitset<16>(0b1111111111111100); // clear 1st two bits in data_B
                 block_B |= std::bitset<16>(segment.to_ulong());
-                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_B.to_ulong()) << (2 * 26 + 10);
+                all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(block_B.to_ulong()) << (2 * 26 + 10);
                 const auto crc_B = calculate_crc(block_B, OFFSET_WORDS.at("B"));
 //                DEBUG_PRINT_LITE("(i=%d)CRC B: %s\n", i, crc_B.to_string().c_str());
-                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_B.to_ulong()) << (2 * 26);
+                all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(crc_B.to_ulong()) << (2 * 26);
 
                 // BLOCK C:
                 if (i == 0) {
-                    all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_C.to_ulong()) << (1 * 26 + 10);
-                    all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_C.to_ulong()) << (1 * 26);
+                    all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(block_C.to_ulong()) << (1 * 26 + 10);
+                    all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(crc_C.to_ulong()) << (1 * 26);
                 } else {
                     block_C = std::bitset<16>(0);
                     crc_C = calculate_crc(block_C, OFFSET_WORDS.at("C"));
-                    all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(block_C.to_ulong()) << (1 * 26 + 10);
-                    all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_C.to_ulong()) << (1 * 26);
+                    all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(block_C.to_ulong()) << (1 * 26 + 10);
+                    all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(crc_C.to_ulong()) << (1 * 26);
                 }
 
 
@@ -585,11 +536,11 @@ public:
                 const auto chars = block_D.substr(i, 2);
                 uint16_t combined_value = (static_cast<uint16_t>(chars[0]) << 8) | static_cast<uint16_t>(chars[1]);
                 const auto crc_4 = calculate_crc(std::bitset<16>(combined_value), OFFSET_WORDS.at("D"));
-                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(combined_value) << (0 * 26 + 10);
-                all_blocks |= std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE>(crc_4.to_ulong()) << (0 * 26);
+                all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(combined_value) << (0 * 26 + 10);
+                all_blocks |= std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE>(crc_4.to_ulong()) << (0 * 26);
 
-                const auto offset = ODA_BLOCKS_0A_COUNT - (i / 2) - 1;
-                const auto total_offset = offset * ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE;
+                const auto offset = BLOCKS_COUNT_IN_0A - (i / 2) - 1;
+                const auto total_offset = offset * BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE;
 //                DEBUG_PRINT_LITE("offset: %d, total_offset: %d\n", offset, total_offset);
 //                DEBUG_PRINT_LITE("all_blocks: %s\n", all_blocks.to_string().c_str());
                 const auto or_bits = std::bitset<packet.size()>(all_blocks.to_string()) << total_offset;
@@ -606,7 +557,7 @@ public:
         }
     }
 
-    std::bitset<ODA_BLOCKS_2A_COUNT * ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE> process_2A() {
+    std::bitset<SIZE_2A> process_2A() {
         try {
             ////////////////////////////
             /// BLOCK 1
@@ -674,42 +625,42 @@ public:
             ////////////////////////////
             /// Assemble the packet
             ////////////////////////////
-            std::bitset<ODA_BLOCKS_0A_COUNT * ODA_BLOCK_SIZE> all_blocks(0);
-            std::bitset<ODA_BLOCKS_2A_COUNT * ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE> packet(0);
+            std::bitset<BLOCKS_COUNT_IN_0A * BLOCK_ROW_SIZE> all_blocks(0);
+            std::bitset<SIZE_2A> packet(0);
             for (int i = 0; i < radio_text.size(); i += 4) { // Processing 4 characters per iteration
 //            for (int i = 0; i < 2; i += 4) { // Processing 4 characters per iteration
                 // BLOCK A:
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(block_A.to_ulong()) << (3 * 26 + 10);
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(crc_A.to_ulong()) << (3 * 26);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(block_A.to_ulong()) << (3 * 26 + 10);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(crc_A.to_ulong()) << (3 * 26);
 
                 // BLOCK B:
                 segment_address_bits = std::bitset<4>(i / 4); // Update segment address
-                block_B &= std::bitset<16>(0b1111111111110000); // Clear segment address bits in block_B
+                block_B &= std::bitset<16>(0b1111111111110000); // Clear segment address bits in data_B
                 block_B |= std::bitset<16>(segment_address_bits.to_ulong());
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(block_B.to_ulong()) << (2 * 26 + 10);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(block_B.to_ulong()) << (2 * 26 + 10);
                 const auto crc_B = calculate_crc(block_B, OFFSET_WORDS.at("B"));
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(crc_B.to_ulong()) << (2 * 26);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(crc_B.to_ulong()) << (2 * 26);
 
                 // BLOCK C:
                 const auto chars_C = radio_text.substr(i, 2);
                 uint16_t combined_value_C = (static_cast<uint16_t>(chars_C[0]) << 8) | static_cast<uint16_t>(chars_C[1]);
                 const auto crc_C = calculate_crc(std::bitset<16>(combined_value_C), OFFSET_WORDS.at("C"));
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(combined_value_C) << (1 * 26 + 10);
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(crc_C.to_ulong()) << (1 * 26);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(combined_value_C) << (1 * 26 + 10);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(crc_C.to_ulong()) << (1 * 26);
 
                 // BLOCK D:
                 const auto chars_D = radio_text.substr(i + 2, 2);
                 uint16_t combined_value_D = (static_cast<uint16_t>(chars_D[0]) << 8) | static_cast<uint16_t>(chars_D[1]);
                 const auto crc_D = calculate_crc(std::bitset<16>(combined_value_D), OFFSET_WORDS.at("D"));
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(combined_value_D) << (0 * 26 + 10);
-                all_blocks |= std::bitset<ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE>(crc_D.to_ulong()) << (0 * 26);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(combined_value_D) << (0 * 26 + 10);
+                all_blocks |= std::bitset<BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE>(crc_D.to_ulong()) << (0 * 26);
                 print_packet(all_blocks);
 
 //                DEBUG_PRINT_LITE("all_blocks: %s\n", all_blocks.to_string().c_str());
 
                 // Calculate total offset and combine blocks into the packet
-                const auto offset = ODA_BLOCKS_2A_COUNT - (i / 4) - 1;
-                const auto total_offset = offset * ODA_BLOCK_PARTS_COUNT * ODA_BLOCK_SIZE;
+                const auto offset = BLOCKS_COUNT_IN_2A - (i / 4) - 1;
+                const auto total_offset = offset * BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE;
                 const auto or_bits = std::bitset<packet.size()>(all_blocks.to_string()) << total_offset;
                 packet |= or_bits;
 
