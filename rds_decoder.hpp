@@ -8,6 +8,11 @@
 #include <sstream>
 #include <bitset>
 #include <string>
+#include <numeric>  // For std::accumulate
+#include <iomanip>
+#include <set>
+#include <cassert>
+#include <functional> // For std::reference_wrapper
 
 #include "shared.hpp"
 

@@ -1,4 +1,3 @@
-#include <iomanip>
 #include "rds_decoder.hpp"
 
 class Args {
@@ -138,28 +137,28 @@ public:
 
 class Block {
 public:
-    std::bitset<16> data_A;
-    std::bitset<16> data_B;
-    std::bitset<16> data_C;
-    std::bitset<16> data_D;
+    std::bitset<DATA_BITS> data_A;
+    std::bitset<DATA_BITS> data_B;
+    std::bitset<DATA_BITS> data_C;
+    std::bitset<DATA_BITS> data_D;
 
-    std::bitset<10> crc_A;
-    std::bitset<10> crc_B;
-    std::bitset<10> crc_C;
-    std::bitset<10> crc_D;
+    std::bitset<CRC_BITS> crc_A;
+    std::bitset<CRC_BITS> crc_B;
+    std::bitset<CRC_BITS> crc_C;
+    std::bitset<CRC_BITS> crc_D;
 
 
     Block(
             // Data
-            std::bitset<16> block_A,
-            std::bitset<16> block_B,
-            std::bitset<16> block_C,
-            std::bitset<16> block_D,
+            std::bitset<DATA_BITS> block_A,
+            std::bitset<DATA_BITS> block_B,
+            std::bitset<DATA_BITS> block_C,
+            std::bitset<DATA_BITS> block_D,
             // CRC
-            std::bitset<10> crc_A,
-            std::bitset<10> crc_B,
-            std::bitset<10> crc_C,
-            std::bitset<10> crc_D
+            std::bitset<CRC_BITS> crc_A,
+            std::bitset<CRC_BITS> crc_B,
+            std::bitset<CRC_BITS> crc_C,
+            std::bitset<CRC_BITS> crc_D
     ) :     // Data
             data_A(block_A),
             data_B(block_B),
@@ -170,10 +169,23 @@ public:
             crc_B(crc_B),
             crc_C(crc_C),
             crc_D(crc_D) {}
-};
 
-class CRC {
-public:
+    ~Block() = default;
+
+    Block &operator=(const Block &other) = default;
+
+    Block copy() const {
+        return Block(
+                this->data_A,
+                this->data_B,
+                this->data_C,
+                this->data_D,
+                this->crc_A,
+                this->crc_B,
+                this->crc_C,
+                this->crc_D
+        );
+    }
 };
 
 /**
@@ -209,51 +221,127 @@ private:
 //            DEBUG_PRINT_LITE("i: %d%c", i, '\n');
             // Extract blocks in reverse order (D to A)
             // Block A
-            const int block_A_start = i * BLOCK_ROW_SIZE*BLOCKS_COUNT_IN_0A;
-            std::bitset<DATA_BITS> block_A = std::bitset<DATA_BITS>(data.to_string().substr(block_A_start, DATA_BITS));
-            std::bitset<CRC_BITS> crc_A = std::bitset<CRC_BITS>(data.to_string().substr(block_A_start + DATA_BITS, CRC_BITS));
+            const int row_A_start = i * BLOCK_ROW_SIZE * BLOCKS_COUNT_IN_0A;
+            std::bitset<DATA_BITS> data_A = std::bitset<DATA_BITS>(data.to_string().substr(row_A_start, DATA_BITS));
+            std::bitset<CRC_BITS> crc_A = std::bitset<CRC_BITS>(data.to_string().substr(row_A_start + DATA_BITS, CRC_BITS));
 
             // Block B
-            const int block_B_start = block_A_start + BLOCK_ROW_SIZE;
-            std::bitset<DATA_BITS> block_B = std::bitset<DATA_BITS>(data.to_string().substr(block_B_start, DATA_BITS));
-            std::bitset<CRC_BITS> crc_B = std::bitset<CRC_BITS>(data.to_string().substr(block_B_start + DATA_BITS, CRC_BITS));
+            const int row_B_start = row_A_start + BLOCK_ROW_SIZE;
+            std::bitset<DATA_BITS> data_B = std::bitset<DATA_BITS>(data.to_string().substr(row_B_start, DATA_BITS));
+            std::bitset<CRC_BITS> crc_B = std::bitset<CRC_BITS>(data.to_string().substr(row_B_start + DATA_BITS, CRC_BITS));
 
             // Block C
-            const int block_C_start = block_B_start + BLOCK_ROW_SIZE;
-            std::bitset<DATA_BITS> block_C = std::bitset<DATA_BITS>(data.to_string().substr(block_C_start, DATA_BITS));
-            std::bitset<CRC_BITS> crc_C = std::bitset<CRC_BITS>(data.to_string().substr(block_C_start + DATA_BITS, CRC_BITS));
+            const int row_C_start = row_B_start + BLOCK_ROW_SIZE;
+            std::bitset<DATA_BITS> data_C = std::bitset<DATA_BITS>(data.to_string().substr(row_C_start, DATA_BITS));
+            std::bitset<CRC_BITS> crc_C = std::bitset<CRC_BITS>(data.to_string().substr(row_C_start + DATA_BITS, CRC_BITS));
 
             // Block D
-            const int block_D_start = block_C_start + BLOCK_ROW_SIZE;
-            std::bitset<DATA_BITS> block_D = std::bitset<DATA_BITS>(data.to_string().substr(block_D_start, DATA_BITS));
-            std::bitset<CRC_BITS> crc_D = std::bitset<CRC_BITS>(data.to_string().substr(block_D_start + DATA_BITS, CRC_BITS));
+            const int data_D_start = row_C_start + BLOCK_ROW_SIZE;
+            std::bitset<DATA_BITS> data_D = std::bitset<DATA_BITS>(data.to_string().substr(data_D_start, DATA_BITS));
+            std::bitset<CRC_BITS> crc_D = std::bitset<CRC_BITS>(data.to_string().substr(data_D_start + DATA_BITS, CRC_BITS));
 
             // Add to the vectors
-            blocks.emplace_back(block_A, block_B, block_C, block_D, crc_A, crc_B, crc_C, crc_D);
+            blocks.emplace_back(data_A, data_B, data_C, data_D, crc_A, crc_B, crc_C, crc_D);
 
-//            DEBUG_PRINT_LITE("Block A: %s | %s%c", block_A.to_string().c_str(), crc_A.to_string().c_str(), '\n');
-//            DEBUG_PRINT_LITE("Block B: %s | %s%c", block_B.to_string().c_str(), crc_B.to_string().c_str(), '\n');
-//            DEBUG_PRINT_LITE("Block C: %s | %s%c", block_C.to_string().c_str(), crc_C.to_string().c_str(), '\n');
-//            DEBUG_PRINT_LITE("Block D: %s | %s%c", block_D.to_string().c_str(), crc_D.to_string().c_str(), '\n');
+//            DEBUG_PRINT_LITE("Block A: %s | %s%c", data_A.to_string().c_str(), crc_A.to_string().c_str(), '\n');
+//            DEBUG_PRINT_LITE("Block B: %s | %s%c", data_B.to_string().c_str(), crc_B.to_string().c_str(), '\n');
+//            DEBUG_PRINT_LITE("Block C: %s | %s%c", data_C.to_string().c_str(), crc_C.to_string().c_str(), '\n');
+//            DEBUG_PRINT_LITE("Block D: %s | %s%c", data_D.to_string().c_str(), crc_D.to_string().c_str(), '\n');
         }
         return blocks;
     }
 
+    /**
+     * @brief Calculate the CRC for the given data and offset.
+     * If the order or rows is incorrect, the function will modify the blocks parameter in order to fix it.
+     *
+     * @param blocks The blocks to calculate the CRC for
+     */
+    bool _check_crc_and_fix_block_order(std::vector<Block> &blocks) {
+        for (auto &block: blocks) {
+            auto tmp_block = block.copy();
+            std::set<std::string> founded_offsets;
+            bool found = false;
+            for (const auto &[offset_key, offset_value]: OFFSET_WORDS) {
+                auto rows = std::vector<std::tuple<std::string, std::reference_wrapper<std::bitset<DATA_BITS>>, std::reference_wrapper<std::bitset<CRC_BITS>>>>{
+                        {"A", std::ref(tmp_block.data_A), std::ref(tmp_block.crc_A)},
+                        {"B", std::ref(tmp_block.data_B), std::ref(tmp_block.crc_B)},
+                        {"C", std::ref(tmp_block.data_C), std::ref(tmp_block.crc_C)},
+                        {"D", std::ref(tmp_block.data_D), std::ref(tmp_block.crc_D)}
+                };
+
+                for (const auto row: rows) {
+                    const std::string &row_key = std::get<0>(row);
+                    const std::bitset<DATA_BITS> &row_data = std::get<1>(row);
+                    const std::bitset<CRC_BITS> &row_crc = std::get<2>(row);
+
+                    const auto calculated_crc = calculate_crc(row_data, offset_value);
+                    if (calculated_crc == row_crc) {
+                        if (offset_key == "A") {
+                            DEBUG_PRINT_LITE("offset_key: %s, row_key: %s%c", offset_key.c_str(), row_key.c_str(), '\n');
+                            block.data_A = std::bitset<DATA_BITS>(row_data);
+                            block.crc_A = row_crc;
+                        } else if (offset_key == "B") {
+                            DEBUG_PRINT_LITE("offset_key: %s, row_key: %s%c", offset_key.c_str(), row_key.c_str(), '\n');
+                            block.data_B = row_data;
+                            block.crc_B = row_crc;
+                        } else if (offset_key == "C") {
+                            DEBUG_PRINT_LITE("offset_key: %s, row_key: %s%c", offset_key.c_str(), row_key.c_str(), '\n');
+                            block.data_C = row_data;
+                            block.crc_C = row_crc;
+                        } else if (offset_key == "D") {
+                            DEBUG_PRINT_LITE("offset_key: %s, row_key: %s%c", offset_key.c_str(), row_key.c_str(), '\n');
+                            block.data_D = row_data;
+                            block.crc_D = row_crc;
+                        } else {
+                            throw std::invalid_argument("Invalid offset key: " + offset_key);
+                        }
+                        founded_offsets.insert(offset_key);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found) {
+                throw std::invalid_argument("CRC check failed - data is corrupted.");
+            }
+
+            // Check that all founded offsets are unique
+            if (founded_offsets.size() != OFFSET_WORDS.size()) {
+                throw std::invalid_argument("Bad data - not all offsets are unique.");
+            }
+
+        }
+    }
+
+
 public:
     Args *args;
 
-    Program(Args *args) : args(args) {
+    Program(Args
+            *args) :
+            args(args) {
     }
 
-    ~Program() {
+    ~
+
+    Program() {
         delete args;
     }
 
     void decode_0A(const std::bitset<SIZE_0A> data) {
-        const auto blocks = this->_get_blocks(data);
+        auto blocks = this->_get_blocks(data);
 
         DEBUG_PRINT_LITE("Block count: %d%c", blocks.size(), '\n');
         DEBUG_PRINT_LITE("Data: %s%c", data.to_string().c_str(), '\n');
+
+        //////////////////////////
+        /// CRC
+        //////////////////////////
+        // Calculate the crc for each block and compare it with the received crc
+        // consider  that the block can be reorganized
+        this->_check_crc_and_fix_block_order(blocks);
 
         //////////////////////////
         /// Decode Block A (Program Identifier - PI)

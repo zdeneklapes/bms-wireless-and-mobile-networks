@@ -359,39 +359,6 @@ public:
     }
 };
 
-const auto OFFSET_WORDS = std::map<std::string, std::bitset<10>>{
-        {"A", std::bitset<10>(0b0011111100)},
-        {"B", std::bitset<10>(0b0110011000)},
-        {"C", std::bitset<10>(0b0101101000)},
-        {"D", std::bitset<10>(0b0110110100)},
-        {"E", std::bitset<10>(0b0000000000)},
-};
-
-/**
- * @brief Optimized CRC-10 calculation function for a 16-bit message.
- *
- * @param message The 16-bit message to compute the CRC for.
- * @return std::bitset<10> The 10-bit CRC value.
- */
-std::bitset<10> calculate_crc(const std::bitset<16> &message, std::bitset<10> offset) {
-    uint32_t data = message.to_ulong();  // Convert the 16-bit message to an unsigned integer
-    data <<= 10;  // Shift left by 10 bits to append 10 zero bits for CRC (message * x^10)
-
-    const int total_bits = 26;  // 16-bit message + 10-bit CRC space
-
-    // Perform modulo-2 division (XOR) for CRC calculation
-    for (int i = total_bits - 1; i >= 10; --i) {
-        if (data & (1 << i)) {  // If the leading bit is set
-            data ^= (CRC_POLYNOMIAL << (i - 10));  // XOR with the generator polynomial shifted appropriately
-        }
-    }
-
-    // The remainder is the CRC value
-    auto crc = std::bitset<10>(data & 0x3FF);  // Mask out the 10 bits for the CRC
-    crc ^= offset;  // XOR with the offset word
-    return crc;
-}
-
 /**
  * @brief Class that holds global variables for the whole program
  */

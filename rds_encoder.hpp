@@ -13,7 +13,4 @@
 #include "rds_encoder.hpp"
 #include "shared.hpp"
 
-#define CRC_POLYNOMIAL 0b10110111001
-#define REGEX_TEXT "[a-zA-Z0-9 ]*"
-
 #endif
