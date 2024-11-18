@@ -1,3 +1,8 @@
+/**
+ * @file rds_encoder.hpp
+ * @author Zdeněk Lapeš <lapes.zdenek@gmail.com>
+ * @date 2024-11-18
+ */
 #ifndef RDS_ENCODER_HPP
 #define RDS_ENCODER_HPP
 

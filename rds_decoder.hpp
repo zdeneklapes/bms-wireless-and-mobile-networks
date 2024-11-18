@@ -1,3 +1,9 @@
+/**
+ * @file rds_decoder.hpp
+ * @author Zdeněk Lapeš <lapes.zdenek@gmail.com>
+ * @date 2024-11-18
+ */
+
 #ifndef RDS_DECODER_HPP
 #define RDS_DECODER_HPP
 

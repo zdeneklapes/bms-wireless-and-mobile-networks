@@ -1,3 +1,8 @@
+/**
+ * @file rds_decoder.cpp
+ * @author Zdeněk Lapeš <lapes.zdenek@gmail.com>
+ * @date 2024-11-18
+ */
 #include "rds_decoder.hpp"
 
 class Args {
@@ -212,12 +217,12 @@ private:
     }
 
     template<std::size_t N>
-    auto _get_blocks(const std::bitset<N> data) {
+    auto _get_blocks(const std::bitset<N> data, const int block_count) {
         std::vector<Block> blocks;
 //        print_packet(data);
 
         // Parse
-        for (int i = 0; i < BLOCKS_COUNT_IN_0A; i += 1) {
+        for (int i = 0; i < block_count; i += 1) {
 //            DEBUG_PRINT_LITE("i: %d%c", i, '\n');
             // Extract blocks in reverse order (D to A)
             // Block A
@@ -324,14 +329,12 @@ public:
             args(args) {
     }
 
-    ~
-
-    Program() {
+    ~ Program() {
         delete args;
     }
 
     void decode_0A(const std::bitset<SIZE_0A> data) {
-        auto blocks = this->_get_blocks(data);
+        auto blocks = this->_get_blocks(data, BLOCKS_COUNT_IN_0A);
 
         DEBUG_PRINT_LITE("Block count: %d%c", blocks.size(), '\n');
         DEBUG_PRINT_LITE("Data: %s%c", data.to_string().c_str(), '\n');
@@ -410,13 +413,81 @@ public:
             *buffer << static_cast<char>(ps1) << static_cast<char>(ps2);
         }
 
-        std::cout << "PS: " << buffer->str() << std::endl;
+        // Remove trailing spaces from start and end
+        std::string buffer_text = buffer->str();
+        auto buffer_trimmed = buffer_text.erase(buffer_text.find_last_not_of(" \n\r\t") + 1);
+        buffer_trimmed = buffer_trimmed.erase(0, buffer_text.find_first_not_of(" \n\r\t"));
+
+        std::cout << "PS: " << "\"" << buffer_trimmed << "\"" << std::endl;
 
         // Note: Full PS can be obtained by concatenating all segments from Block D over time
     }
 
     void decode_2A(const std::bitset<SIZE_2A> data) {
-        // TODO
+        auto blocks = this->_get_blocks(data, BLOCKS_COUNT_IN_2A);
+
+        DEBUG_PRINT_LITE("Block count: %d%c", blocks.size(), '\n');
+        DEBUG_PRINT_LITE("Data: %s%c", data.to_string().c_str(), '\n');
+
+        //////////////////////////
+        /// CRC and Block Order Validation
+        //////////////////////////
+        // Validate and fix block order based on CRC and offsets
+        this->_check_crc_and_fix_block_order(blocks);
+
+        //////////////////////////
+        /// Decode Block A (Program Identifier - PI)
+        //////////////////////////
+        uint16_t program_id = static_cast<uint16_t>(blocks[0].data_A.to_ulong());
+        std::cout << "PI: " << program_id << std::endl;
+
+        //////////////////////////
+        /// Decode Block B
+        //////////////////////////
+        uint16_t block_B = static_cast<uint16_t>(blocks[0].data_B.to_ulong());
+
+        // Group Type (GT) is 2A for this task
+        std::cout << "GT: 2A" << std::endl;
+
+        // Traffic Program (TP)
+        uint8_t tp = (block_B >> 10) & 0x1;
+        std::cout << "TP: " << (tp == 1 ? "1" : "0") << std::endl;
+
+        // Program Type (PTY)
+        uint8_t pty = (block_B >> 5) & 0x1F;
+        std::cout << "PTY: " << static_cast<int>(pty) << std::endl;
+
+        // Radio Text A/B Flag
+        uint8_t ab_flag = (block_B >> 4) & 0x1;
+        std::cout << "A/B: " << (ab_flag == 1 ? "1" : "0") << std::endl;
+
+        //////////////////////////
+        /// Decode Block C and D (Radio Text - RT)
+        //////////////////////////
+        std::stringstream radio_text_stream;
+
+        DEBUG_PRINT_LITE("Blocks count: %d%c", blocks.size(), '\n');
+        for (int i = 0; i < blocks.size(); ++i) {
+            DEBUG_PRINT_LITE("Processing Block %d\n", i);
+
+            uint16_t block_C_data = static_cast<uint16_t>(blocks[i].data_C.to_ulong());
+            uint8_t char1 = (block_C_data >> 8) & 0xFF;
+            uint8_t char2 = block_C_data & 0xFF;
+            radio_text_stream << static_cast<char>(char1) << static_cast<char>(char2);
+
+            uint16_t block_D_data = static_cast<uint16_t>(blocks[i].data_D.to_ulong());
+            char1 = (block_D_data >> 8) & 0xFF;
+            char2 = block_D_data & 0xFF;
+            radio_text_stream << static_cast<char>(char1) << static_cast<char>(char2);
+        }
+
+        // Remove trailing spaces from start and end
+        std::string radio_text = radio_text_stream.str();
+        auto radio_text_trimmed = radio_text.erase(radio_text.find_last_not_of(" \n\r\t") + 1);
+        radio_text_trimmed = radio_text_trimmed.erase(0, radio_text.find_first_not_of(" \n\r\t"));
+
+        // Output Radio Text
+        std::cout << "RT: " << "\"" << radio_text_trimmed << "\"" << std::endl;
     }
 
     void decode() {
@@ -468,9 +539,9 @@ int main(int argc, char *argv[]) {
     try {
         program->decode();
     } catch (const std::invalid_argument &e) {
-        program->exit_with_code(1, e.what());
+        program->exit_with_code(2, e.what());
     } catch (const std::exception &e) {
-        program->exit_with_code(1, e.what());
+        program->exit_with_code(2, e.what());
     }
 
     // Exit with success code and no message

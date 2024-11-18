@@ -1,3 +1,8 @@
+/**
+ * @file rds_encoder.cpp
+ * @author Zdeněk Lapeš <lapes.zdenek@gmail.com>
+ * @date 2024-11-18
+ */
 #include "rds_encoder.hpp"
 
 

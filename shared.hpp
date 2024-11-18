@@ -1,3 +1,8 @@
+/**
+ * @file shared.hpp
+ * @author Zdeněk Lapeš <lapes.zdenek@gmail.com>
+ * @date 2024-11-18
+ */
 #ifndef SHARED_HPP
 #define SHARED_HPP
 
@@ -15,11 +20,10 @@
 #define FREQUENCY_START (87.5)
 #define SIZE_0A (BLOCK_PARTS_COUNT * BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE)
 #define SIZE_2A (BLOCKS_COUNT_IN_2A * BLOCK_PARTS_COUNT * BLOCK_ROW_SIZE)
-#define CRC_POLYNOMIAL 0b10110111001
+#define CRC_POLYNOMIAL (0b10110111001)
 #define REGEX_TEXT "[a-zA-Z0-9 ]*"
 
-
-#define DEBUG (1)
+#define DEBUG (0)
 #define DEBUG_LITE (DEBUG)
 #define DEBUG_PRINT_LITE(fmt, ...) \
             do { if (DEBUG_LITE) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
@@ -27,9 +31,13 @@
         do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
                                 __LINE__, __func__, __VA_ARGS__); } while (0)
 
-//template<std::size_t N>
-//void print_packet(const std::bitset<N> &packet);
 
+/**
+ * @brief Print the packet in blocks.
+ *
+ * @tparam N The size of the packet.
+ * @param packet The packet to print.
+ */
 template<std::size_t N>
 void print_packet(const std::bitset<N> &packet) {
     // Check size is multiple of 26
@@ -75,6 +83,9 @@ std::bitset<10> calculate_crc(const std::bitset<16> &message, std::bitset<10> of
     return crc;
 }
 
+/**
+ * @brief Offset words for each group.
+ */
 const auto OFFSET_WORDS = std::map<std::string, std::bitset<CRC_BITS>>{
         {"A", std::bitset<CRC_BITS>(0b0011111100)},
         {"B", std::bitset<CRC_BITS>(0b0110011000)},
